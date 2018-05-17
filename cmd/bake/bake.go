@@ -2,17 +2,34 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 )
 
+func testMacAddress() error {
+	b, err := ioutil.ReadFile("/sys/class/net/eth0/address")
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(string(b), "b8:27:eb:") {
+		return fmt.Errorf("MAC address %q does not start with b8:27:eb: (Raspberry Pi Foundation)", string(b))
+	}
+	return nil
+}
+
 func main() {
-	// TODO(later): add regression tests once we run into regressions :)
+	result := "SUCCESS\n"
+
+	if err := testMacAddress(); err != nil {
+		result = fmt.Sprintf("FAILURE: testMacAddress: %v\n", err)
+	}
 
 	// No need to configure the serial port, the serial console is
 	// already set up.
-	if err := ioutil.WriteFile("/dev/console", []byte("SUCCESS\n"), 0644); err != nil {
+	if err := ioutil.WriteFile("/dev/console", []byte(result), 0644); err != nil {
 		log.Fatal(err)
 	}
 
