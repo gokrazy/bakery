@@ -23,8 +23,9 @@ func testMacAddress() error {
 		}
 		time.Sleep(time.Duration(i) * time.Second)
 	}
-	if !strings.HasPrefix(string(b), "b8:27:eb:") {
-		return fmt.Errorf("MAC address %q does not start with b8:27:eb: (Raspberry Pi Foundation)", string(b))
+	if !strings.HasPrefix(string(b), "b8:27:eb:") &&
+		!strings.HasPrefix(string(b), "00:0d:b9:") {
+		return fmt.Errorf("MAC address %q does not start with b8:27:eb: (Raspberry Pi Foundation) or 00:0d:b9: (PC Engines GmbH)", string(b))
 	}
 	return nil
 }
