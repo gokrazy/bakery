@@ -69,9 +69,10 @@ func authenticated(nextHandler func(http.ResponseWriter, *http.Request)) func(ht
 var bakeries []*bakery
 
 type bakery struct {
-	Name       string `json:"name"`
-	BaseURL    string `json:"base_url"`
-	SerialPort string `json:"serial_port"`
+	Name       string   `json:"name"`
+	BaseURL    string   `json:"base_url"`
+	SerialPort string   `json:"serial_port"`
+	Slugs      []string `json:"slugs"`
 
 	scanner *bufio.Scanner
 }
@@ -152,9 +153,40 @@ func (pw *prefixWriter) Write(p []byte) (n int, err error) {
 
 var mu sync.Mutex
 
+func filterBakeries(slug string) []*bakery {
+	var filtered []*bakery
+	for _, b := range bakeries {
+		found := false
+		for _, s := range b.Slugs {
+			if s != slug {
+				continue
+			}
+			found = true
+			break
+		}
+		if !found {
+			continue
+		}
+		filtered = append(filtered, b)
+	}
+	return filtered
+}
+
 func testbootHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, "expected a PUT request", http.StatusBadRequest)
+		return
+	}
+
+	slug := r.FormValue("slug")
+	if slug == "" {
+		http.Error(w, "empty slug parameter", http.StatusBadRequest)
+		return
+	}
+
+	filtered := filterBakeries(slug)
+	if len(filtered) == 0 {
+		http.Error(w, fmt.Sprintf("no bakery instances configured for slug %q", slug), http.StatusNotFound)
 		return
 	}
 
@@ -169,7 +201,7 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var eg errgroup.Group
-	for _, b := range bakeries {
+	for _, b := range filtered {
 		b := b // copy
 		eg.Go(func() error {
 			return b.testboot(
