@@ -21,6 +21,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 
+	"github.com/gokrazy/internal/fat"
+	"github.com/gokrazy/internal/mbr"
 	"github.com/gokrazy/internal/updater"
 )
 
@@ -119,12 +121,19 @@ func (b *bakery) waitForSuccess(w io.Writer) error {
 	return fmt.Errorf("did not find SUCCESS message in boot log on serial port")
 }
 
-func (b *bakery) testboot(w io.Writer, bootImg io.Reader) error {
+func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte) error {
 	// TODO(later): power off/on bakery raspberry pi via homematic to save power
 
 	log.Printf("installing new boot image on bakery %q", b.Name)
 	if err := updater.StreamTo(b.BaseURL+"update/bootonly", bootImg); err != nil {
 		return err
+	}
+	if err := updater.UpdateMBR(b.BaseURL, bytes.NewReader(mbr)); err != nil {
+		if err == updater.ErrUpdateHandlerNotImplemented {
+			log.Printf("target does not support updating MBR yet, ignoring")
+		} else {
+			return fmt.Errorf("updating MBR: %v", err)
+		}
 	}
 
 	log.Printf("rebooting bakery %q", b.Name)
@@ -172,6 +181,27 @@ func filterBakeries(slug string) []*bakery {
 	return filtered
 }
 
+func mbrFor(f io.ReadSeeker) ([]byte, error) {
+	rd, err := fat.NewReader(f)
+	if err != nil {
+		return nil, err
+	}
+	vmlinuzOffset, _, err := rd.Extents("/vmlinuz")
+	if err != nil {
+		return nil, err
+	}
+	cmdlineOffset, _, err := rd.Extents("/cmdline.txt")
+	if err != nil {
+		return nil, err
+	}
+
+	vmlinuzLba := uint32((vmlinuzOffset / 512) + 8192)
+	cmdlineTxtLba := uint32((cmdlineOffset / 512) + 8192)
+
+	mbr := mbr.Configure(vmlinuzLba, cmdlineTxtLba)
+	return mbr[:], nil
+}
+
 func testbootHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, "expected a PUT request", http.StatusBadRequest)
@@ -200,13 +230,21 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	mbr, err := mbrFor(bytes.NewReader(body))
+	if err != nil {
+		log.Printf("testing boot image failed: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	var eg errgroup.Group
 	for _, b := range filtered {
 		b := b // copy
 		eg.Go(func() error {
 			return b.testboot(
 				&prefixWriter{w: w, prefix: "[" + b.Name + "] "},
-				bytes.NewReader(body))
+				bytes.NewReader(body),
+				mbr)
 		})
 	}
 	if err := eg.Wait(); err != nil {
