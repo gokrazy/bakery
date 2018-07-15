@@ -79,8 +79,8 @@ func testboot(w io.Writer) error {
 		return fmt.Errorf("%v: %v", qemu.Args, err)
 	}
 	rd := bufio.NewScanner(stdout)
-	if err := waitForSuccess(rd, w); err != nil {
-		return err
+	if err := waitForSuccess(rd, w); err == nil {
+		return nil
 	}
 	return qemu.Wait()
 }
