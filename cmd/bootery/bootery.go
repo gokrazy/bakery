@@ -237,12 +237,13 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var buf bytes.Buffer
 	var eg errgroup.Group
 	for _, b := range filtered {
 		b := b // copy
 		eg.Go(func() error {
 			return b.testboot(
-				&prefixWriter{w: w, prefix: "[" + b.Name + "] "},
+				&prefixWriter{w: &buf, prefix: "[" + b.Name + "] "},
 				bytes.NewReader(body),
 				mbr)
 		})
@@ -252,6 +253,7 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	io.Copy(w, &buf)
 	log.Printf("boot image test succeeded")
 }
 
