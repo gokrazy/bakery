@@ -22,7 +22,7 @@ real hardware.
 ```
 ~/go/bin/gokr-packer \
   -hostname=bakery \
-  -overwrite=/dev/sdb \
+  -overwrite=/dev/sdx \
   github.com/gokrazy/breakglass \
   github.com/gokrazy/bakery/cmd/bake
 ```
