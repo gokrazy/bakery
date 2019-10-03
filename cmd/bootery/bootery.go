@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -68,13 +69,34 @@ func authenticated(nextHandler func(http.ResponseWriter, *http.Request)) func(ht
 	}
 }
 
+func findttyUSB(productLine string) (dev string, _ error) {
+	matches, err := filepath.Glob("/dev/ttyUSB*")
+	if err != nil {
+		return "", err
+	}
+	for _, m := range matches {
+		usbUevent := "/sys/class/tty/" + strings.TrimPrefix(m, "/dev/") + "/device/../uevent"
+		b, err := ioutil.ReadFile(usbUevent)
+		if err != nil {
+			return "", err
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+			if line == productLine {
+				return m, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("device not found")
+}
+
 var bakeries []*bakery
 
 type bakery struct {
-	Name       string   `json:"name"`
-	BaseURL    string   `json:"base_url"`
-	SerialPort string   `json:"serial_port"`
-	Slugs      []string `json:"slugs"`
+	Name              string   `json:"name"`
+	BaseURL           string   `json:"base_url"`
+	SerialPort        string   `json:"serial_port"`
+	SerialProductLine string   `json:"serial_product_line"`
+	Slugs             []string `json:"slugs"`
 
 	scanner *bufio.Scanner
 }
@@ -86,6 +108,14 @@ func (b *bakery) init() error {
 		return err
 	}
 
+	if b.SerialPort == "" {
+		var err error
+		b.SerialPort, err = findttyUSB(b.SerialProductLine)
+		if err != nil {
+			return err
+		}
+		log.Printf("found serial port %s (product line %s)", b.SerialPort, b.SerialProductLine)
+	}
 	log.Printf("opening 115200 8N1 serial port %s", b.SerialPort)
 
 	uart, err := os.OpenFile(b.SerialPort, os.O_EXCL|os.O_RDWR|unix.O_NOCTTY|unix.O_NONBLOCK, 0600)
