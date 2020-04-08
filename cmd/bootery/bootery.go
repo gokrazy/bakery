@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"io/ioutil"
 	"log"
@@ -97,6 +98,7 @@ type bakery struct {
 	SerialPort        string   `json:"serial_port"`
 	SerialProductLine string   `json:"serial_product_line"`
 	Slugs             []string `json:"slugs"`
+	Hostname          string
 
 	scanner *bufio.Scanner
 }
@@ -104,9 +106,12 @@ type bakery struct {
 func (b *bakery) init() error {
 	log.Printf("initializing bakery %q", b.Name)
 
-	if _, err := url.Parse(b.BaseURL); err != nil {
+	u, err := url.Parse(b.BaseURL)
+	if err != nil {
 		return err
 	}
+	b.Hostname = u.Host
+	log.Printf("hostname=%q partuuid=%08x", b.Hostname, derivePartUUID(b.Hostname))
 
 	if b.SerialPort == "" {
 		var err error
@@ -211,7 +216,13 @@ func filterBakeries(slug string) []*bakery {
 	return filtered
 }
 
-func mbrFor(f io.ReadSeeker) ([]byte, error) {
+func derivePartUUID(hostname string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(hostname))
+	return h.Sum32()
+}
+
+func mbrFor(f io.ReadSeeker, partuuid uint32) ([]byte, error) {
 	rd, err := fat.NewReader(f)
 	if err != nil {
 		return nil, err
@@ -228,7 +239,7 @@ func mbrFor(f io.ReadSeeker) ([]byte, error) {
 	vmlinuzLba := uint32((vmlinuzOffset / 512) + 8192)
 	cmdlineTxtLba := uint32((cmdlineOffset / 512) + 8192)
 
-	mbr := mbr.Configure(vmlinuzLba, cmdlineTxtLba)
+	mbr := mbr.Configure(vmlinuzLba, cmdlineTxtLba, partuuid)
 	return mbr[:], nil
 }
 
@@ -260,18 +271,16 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mbr, err := mbrFor(bytes.NewReader(body))
-	if err != nil {
-		log.Printf("testing boot image failed: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	var buf bytes.Buffer
 	var eg errgroup.Group
 	for _, b := range filtered {
 		b := b // copy
 		eg.Go(func() error {
+			mbr, err := mbrFor(bytes.NewReader(body), derivePartUUID(b.Hostname))
+			if err != nil {
+				return err
+			}
+
 			return b.testboot(
 				&prefixWriter{w: &buf, prefix: "[" + b.Name + "] "},
 				bytes.NewReader(body),
