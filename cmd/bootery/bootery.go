@@ -327,6 +327,43 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("boot image test succeeded")
 }
 
+func serialHandler(w http.ResponseWriter, r *http.Request) {
+	name := r.FormValue("name")
+	if name == "" {
+		http.Error(w, "empty name parameter", http.StatusBadRequest)
+		return
+	}
+
+	var bakery *bakery
+	for _, b := range bakeries {
+		if b.Name != name {
+			continue
+		}
+		bakery = b
+		break
+	}
+	if bakery == nil {
+		http.Error(w, fmt.Sprintf("no bakery instances found with name %q", name), http.StatusNotFound)
+		return
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	b := bakery
+	for b.scanner.Scan() {
+		if err := r.Context().Err(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fmt.Fprintln(w, b.scanner.Text())
+		log.Printf("[%s] %s", b.Name, b.scanner.Text())
+	}
+	if err := b.scanner.Err(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
 func loadBakeries() error {
 	f, err := os.Open("/perm/bootery/bakeries.json")
 	if err != nil {
@@ -370,5 +407,6 @@ func main() {
 	}
 
 	http.HandleFunc("/testboot", authenticated(testbootHandler))
+	http.HandleFunc("/serial", authenticated(serialHandler))
 	log.Fatal(http.ListenAndServe(*listen, nil))
 }
