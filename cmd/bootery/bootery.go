@@ -70,7 +70,28 @@ func authenticated(nextHandler func(http.ResponseWriter, *http.Request)) func(ht
 	}
 }
 
-func findttyUSB(productLine string) (dev string, _ error) {
+func findttyUSBSerial(serial string) (dev string, _ error) {
+	matches, err := filepath.Glob("/dev/ttyUSB*")
+	if err != nil {
+		return "", err
+	}
+	for _, m := range matches {
+		usbUevent := "/sys/class/tty/" + strings.TrimPrefix(m, "/dev/") + "/device/../../serial"
+		b, err := ioutil.ReadFile(usbUevent)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return "", err
+		}
+		if strings.TrimSpace(string(b)) == serial {
+			return m, nil
+		}
+	}
+	return "", fmt.Errorf("device not found")
+}
+
+func findttyUSBProduct(productLine string) (dev string, _ error) {
 	matches, err := filepath.Glob("/dev/ttyUSB*")
 	if err != nil {
 		return "", err
@@ -97,6 +118,7 @@ type bakery struct {
 	BaseURL           string   `json:"base_url"`
 	SerialPort        string   `json:"serial_port"`
 	SerialProductLine string   `json:"serial_product_line"`
+	SerialUSBSerial   string   `json:"serial_usb_serial"`
 	Slugs             []string `json:"slugs"`
 	Hostname          string
 
@@ -111,17 +133,24 @@ func (b *bakery) init() error {
 		return err
 	}
 	b.Hostname = u.Host
-	log.Printf("hostname=%q partuuid=%08x", b.Hostname, derivePartUUID(b.Hostname))
+	log.Printf("[%s] hostname=%q partuuid=%08x", b.Name, b.Hostname, derivePartUUID(b.Hostname))
 
-	if b.SerialPort == "" {
+	if b.SerialPort == "" && b.SerialProductLine != "" {
 		var err error
-		b.SerialPort, err = findttyUSB(b.SerialProductLine)
+		b.SerialPort, err = findttyUSBProduct(b.SerialProductLine)
 		if err != nil {
 			return err
 		}
-		log.Printf("found serial port %s (product line %s)", b.SerialPort, b.SerialProductLine)
+		log.Printf("[%s] found serial port %s (product line %s)", b.Name, b.SerialPort, b.SerialProductLine)
+	} else if b.SerialPort == "" && b.SerialUSBSerial != "" {
+		var err error
+		b.SerialPort, err = findttyUSBSerial(b.SerialUSBSerial)
+		if err != nil {
+			return err
+		}
+		log.Printf("[%s] found serial port %s (serial %q)", b.Name, b.SerialPort, b.SerialUSBSerial)
 	}
-	log.Printf("opening 115200 8N1 serial port %s", b.SerialPort)
+	log.Printf("[%s] opening 115200 8N1 serial port %s", b.Name, b.SerialPort)
 
 	uart, err := os.OpenFile(b.SerialPort, os.O_EXCL|os.O_RDWR|unix.O_NOCTTY|unix.O_NONBLOCK, 0600)
 	if err != nil {
