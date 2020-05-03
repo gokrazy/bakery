@@ -26,6 +26,8 @@ import (
 	"github.com/gokrazy/internal/fat"
 	"github.com/gokrazy/internal/mbr"
 	"github.com/gokrazy/internal/updater"
+
+	_ "net/http/pprof" // for /debug/pprof/ HTTP handler
 )
 
 var (
