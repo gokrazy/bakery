@@ -23,9 +23,11 @@ func testMacAddress() error {
 		}
 		time.Sleep(time.Duration(i) * time.Second)
 	}
+
 	if !strings.HasPrefix(string(b), "b8:27:eb:") &&
+		!strings.HasPrefix(string(b), "dc:a6:32:") &&
 		!strings.HasPrefix(string(b), "00:0d:b9:") {
-		return fmt.Errorf("MAC address %q does not start with b8:27:eb: (Raspberry Pi Foundation) or 00:0d:b9: (PC Engines GmbH)", string(b))
+		return fmt.Errorf("MAC address %q does not start with any of:\n\tb8:27:eb: (Raspberry Pi Foundation)\n\tdc:a6:32: (Raspberry Pi Trading Ltd)\n\t00:0d:b9: (PC Engines GmbH)", string(b))
 	}
 	return nil
 }
@@ -36,6 +38,8 @@ func main() {
 	if err := testMacAddress(); err != nil {
 		result = fmt.Sprintf("FAILURE: testMacAddress: %v\n", err)
 	}
+
+	log.Print(result)
 
 	// No need to configure the serial port, the serial console is
 	// already set up.
