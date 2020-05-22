@@ -127,6 +127,38 @@ type bakery struct {
 	scanner *bufio.Scanner
 }
 
+// TODO(go1.15): switch to (net/url).URL.Redacted()
+func redact(urlWithPassword string) string {
+	u, err := url.Parse(urlWithPassword)
+	if err != nil {
+		return urlWithPassword
+	}
+	if _, has := u.User.Password(); has {
+		u.User = url.UserPassword(u.User.Username(), "xxxxx")
+	}
+	return u.String()
+}
+
+func (b *bakery) String() string {
+	serial := b.SerialPort
+	if b.SerialPort == "" && b.SerialProductLine != "" {
+		serial = fmt.Sprintf("<by product line: %s>", b.SerialProductLine)
+	} else if b.SerialPort == "" && b.SerialUSBSerial != "" {
+		serial = fmt.Sprintf("<by USB serial: %s>", b.SerialUSBSerial)
+	}
+
+	return fmt.Sprintf(`bakery{
+  Name:    %q,
+  BaseURL: %q,
+  Serial:  %s,
+  Slugs:   %v,
+}`,
+		b.Name,
+		redact(b.BaseURL),
+		serial,
+		b.Slugs)
+}
+
 func (b *bakery) init() error {
 	log.Printf("initializing bakery %q", b.Name)
 
@@ -375,7 +407,7 @@ func loadBakeries() error {
 	}
 	log.Printf("loaded %d bakeries from file:", len(bakeries))
 	for _, b := range bakeries {
-		log.Printf("  %+v", *b)
+		log.Print(b)
 	}
 	return nil
 }
