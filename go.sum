@@ -1,5 +1,7 @@
 github.com/gokrazy/internal v0.0.0-20200407080221-9da902858268 h1:Q0Z5vi1HjXMlwiIaC6nn04y0PwRjyG9h9S4hZVzFjTw=
 github.com/gokrazy/internal v0.0.0-20200407080221-9da902858268/go.mod h1:LA5TQy7LcvYGQOy75tkrYkFUhbV2nl5qEBP47PSi2JA=
+github.com/gokrazy/internal v0.0.0-20200601120025-dd941cf69665 h1:gDCysLcCrZM5ynRRO7k0mSEstAt+cIiZp6D/EJ1zv0g=
+github.com/gokrazy/internal v0.0.0-20200601120025-dd941cf69665/go.mod h1:LA5TQy7LcvYGQOy75tkrYkFUhbV2nl5qEBP47PSi2JA=
 golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a h1:WXEvlFVvvGxCJLG6REjsT03iWnKLEWinaScsxF2Vm2o=
 golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.0.0-20200406155108-e3b113bbe6a4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=

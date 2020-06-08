@@ -223,10 +223,10 @@ func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte) error {
 	// TODO(later): power off/on bakery raspberry pi via homematic to save power
 
 	log.Printf("installing new boot image on bakery %q", b.Name)
-	if err := updater.StreamTo(b.BaseURL+"update/bootonly", bootImg); err != nil {
+	if err := updater.StreamTo(b.BaseURL+"update/bootonly", bootImg, http.DefaultClient); err != nil {
 		return err
 	}
-	if err := updater.UpdateMBR(b.BaseURL, bytes.NewReader(mbr)); err != nil {
+	if err := updater.UpdateMBR(b.BaseURL, bytes.NewReader(mbr), http.DefaultClient); err != nil {
 		if err == updater.ErrUpdateHandlerNotImplemented {
 			log.Printf("target does not support updating MBR yet, ignoring")
 		} else {
@@ -235,7 +235,7 @@ func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte) error {
 	}
 
 	log.Printf("rebooting bakery %q", b.Name)
-	if err := updater.Reboot(b.BaseURL); err != nil {
+	if err := updater.Reboot(b.BaseURL, http.DefaultClient); err != nil {
 		return err
 	}
 
