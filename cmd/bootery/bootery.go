@@ -348,6 +348,16 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 	for _, b := range filtered {
 		b := b // copy
 		eg.Go(func() error {
+		Drain:
+			for {
+				select {
+				case line := <-b.serial:
+					fmt.Fprintf(&buf, "(drain) [%s] %s\n", b.Name, line)
+				default:
+					break Drain
+				}
+			}
+
 			mbr, err := mbrFor(bytes.NewReader(body), derivePartUUID(b.Hostname))
 			if err != nil {
 				return err
