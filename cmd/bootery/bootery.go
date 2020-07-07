@@ -124,7 +124,7 @@ type bakery struct {
 	Slugs             []string `json:"slugs"`
 	Hostname          string
 
-	scanner *bufio.Scanner
+	serial chan string
 }
 
 // TODO(go1.15): switch to (net/url).URL.Redacted()
@@ -200,22 +200,26 @@ func (b *bakery) init() error {
 		return err
 	}
 
-	b.scanner = bufio.NewScanner(uart)
+	b.serial = make(chan string)
+	go func() {
+		defer close(b.serial)
+		scanner := bufio.NewScanner(uart)
+		for scanner.Scan() {
+			b.serial <- scanner.Text()
+		}
+		log.Print(scanner.Err())
+	}()
 	return nil
 }
 
 func (b *bakery) waitForSuccess(w io.Writer) error {
-	for b.scanner.Scan() {
-		fmt.Fprintln(w, b.scanner.Text())
-		log.Printf("[%s] %s", b.Name, b.scanner.Text())
-		if b.scanner.Text() == "SUCCESS" {
+	for line := range b.serial {
+		fmt.Fprintln(w, line)
+		log.Printf("[%s] %s", b.Name, line)
+		if line == "SUCCESS" {
 			return nil
 		}
 	}
-	if err := b.scanner.Err(); err != nil {
-		return err
-	}
-
 	return fmt.Errorf("did not find SUCCESS message in boot log on serial port")
 }
 
@@ -388,16 +392,18 @@ func serialHandler(w http.ResponseWriter, r *http.Request) {
 	defer mu.Unlock()
 
 	b := bakery
-	for b.scanner.Scan() {
-		if err := r.Context().Err(); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+	for {
+		select {
+		case <-r.Context().Done():
+			return // HTTP request canceled
+
+		case line := <-b.serial:
+			fmt.Fprintln(w, line)
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			log.Printf("[%s] %s", b.Name, line)
 		}
-		fmt.Fprintln(w, b.scanner.Text())
-		log.Printf("[%s] %s", b.Name, b.scanner.Text())
-	}
-	if err := b.scanner.Err(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
