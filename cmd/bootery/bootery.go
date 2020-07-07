@@ -16,9 +16,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
@@ -212,18 +215,42 @@ func (b *bakery) init() error {
 	return nil
 }
 
-func (b *bakery) waitForSuccess(w io.Writer) error {
+var timestampsRe = regexp.MustCompile(`boot=(\d+) root=(\d+)`)
+
+func (b *bakery) waitForSuccess(w io.Writer, newerT time.Time) error {
+	var successFound, timestampsFound bool
 	for line := range b.serial {
 		fmt.Fprintln(w, line)
 		log.Printf("[%s] %s", b.Name, line)
+		if strings.Contains(line, "boot=") && strings.Contains(line, "root=") {
+			timestampsFound = true
+			matches := timestampsRe.FindStringSubmatch(line)
+			if len(matches) < 3 {
+				return fmt.Errorf("line %q: regexp %v did not match", line, timestampsRe)
+			}
+			log.Printf("matches: %q", matches)
+			bootU, err := strconv.ParseInt(matches[1], 0, 64)
+			if err != nil {
+				return err
+			}
+			// e.g. 2020/07/07 09:17:24 bootU = 1594103608
+			log.Printf("bootU = %d", bootU)
+			bootT := time.Unix(bootU, 0)
+			if !newerT.IsZero() && !bootT.After(newerT) {
+				return fmt.Errorf("boot timestamp %v is not newer than %v", bootT, newerT)
+			}
+		}
 		if line == "SUCCESS" {
+			successFound = true
+		}
+		if successFound && timestampsFound {
 			return nil
 		}
 	}
 	return fmt.Errorf("did not find SUCCESS message in boot log on serial port")
 }
 
-func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte) error {
+func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte, newerT time.Time) error {
 	// TODO(later): power off/on bakery raspberry pi via homematic to save power
 
 	log.Printf("installing new boot image on bakery %q", b.Name)
@@ -249,7 +276,7 @@ func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte) error {
 	}
 
 	log.Printf("waiting for SUCCESS message in boot log on serial port")
-	if err := b.waitForSuccess(w); err != nil {
+	if err := b.waitForSuccess(w, newerT); err != nil {
 		return err
 	}
 
@@ -321,6 +348,13 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// verify that the booted image is newer than the specified timestamp
+	newer := r.FormValue("boot-newer")
+	var newerT time.Time
+	if v, err := strconv.ParseInt(newer, 10, 64); err == nil && v > 0 {
+		newerT = time.Unix(v, 0)
+	}
+
 	slug := r.FormValue("slug")
 	if slug == "" {
 		http.Error(w, "empty slug parameter", http.StatusBadRequest)
@@ -366,7 +400,8 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 			return b.testboot(
 				&prefixWriter{w: &buf, prefix: "[" + b.Name + "] "},
 				bytes.NewReader(body),
-				mbr)
+				mbr,
+				newerT)
 		})
 	}
 	if err := eg.Wait(); err != nil {
