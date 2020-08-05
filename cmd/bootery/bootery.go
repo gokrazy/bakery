@@ -386,6 +386,7 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 	for _, b := range filtered {
 		b := b // copy
 		eg.Go(func() error {
+			log.Printf("draining serial port")
 		Drain:
 			for {
 				select {
