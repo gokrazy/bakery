@@ -203,7 +203,11 @@ func (b *bakery) init() error {
 		return err
 	}
 
-	b.serial = make(chan string)
+	// We need a buffered channel here, otherwise draining the serial channel
+	// might not work correctly. A buffer of 1 should suffice, but then
+	// goroutine scheduling plays too big a role in program behavior. 10 lines
+	// should be large enough to provide some leeway to the goroutine scheduler.
+	b.serial = make(chan string, 10)
 	go func() {
 		defer close(b.serial)
 		scanner := bufio.NewScanner(uart)
