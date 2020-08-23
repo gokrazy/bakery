@@ -392,7 +392,8 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 				select {
 				case line := <-b.serial:
 					fmt.Fprintf(&buf, "(drain) [%s] %s\n", b.Name, line)
-				default:
+
+				case <-time.After(1 * time.Second):
 					break Drain
 				}
 			}
