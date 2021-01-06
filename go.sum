@@ -6,6 +6,8 @@ github.com/gokrazy/internal v0.0.0-20200626085433-6897d2a79a87 h1:L726tuQgWqwRwD
 github.com/gokrazy/internal v0.0.0-20200626085433-6897d2a79a87/go.mod h1:LA5TQy7LcvYGQOy75tkrYkFUhbV2nl5qEBP47PSi2JA=
 github.com/gokrazy/internal v0.0.0-20200626090505-539bb61868de h1:sJ0qBKOIU1j3BLz6TIW3Y1Fg6hR/FZtGEonjkpfTMQQ=
 github.com/gokrazy/internal v0.0.0-20200626090505-539bb61868de/go.mod h1:LA5TQy7LcvYGQOy75tkrYkFUhbV2nl5qEBP47PSi2JA=
+github.com/gokrazy/updater v0.0.0-20210106211705-4d92b338dd24 h1:tGm83sgE6OiTIyHylO7ZBsBZcMocwLdvtBIOJbpyUIU=
+github.com/gokrazy/updater v0.0.0-20210106211705-4d92b338dd24/go.mod h1:PYOvzGOL4nlBmuxu7IyKQTFLaxr61+WPRNRzVtuYOHw=
 golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a h1:WXEvlFVvvGxCJLG6REjsT03iWnKLEWinaScsxF2Vm2o=
 golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.0.0-20200406155108-e3b113bbe6a4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
