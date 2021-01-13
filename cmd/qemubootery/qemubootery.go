@@ -50,7 +50,7 @@ func testboot(w io.Writer) error {
 		"-kernel_package=github.com/rtr7/kernel",
 		"-firmware_package=github.com/rtr7/kernel",
 		"-overwrite="+f.Name(),
-		"-target_storage_bytes=1153441792",
+		"-target_storage_bytes=1258299392",
 		"-serial_console=ttyS0,115200",
 		"github.com/gokrazy/bakery/cmd/bake")
 	packer.Env = append(os.Environ(), "GOARCH=amd64")
