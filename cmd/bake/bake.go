@@ -32,11 +32,26 @@ func testMacAddress() error {
 	return nil
 }
 
+func testUSB() error {
+	fis, err := ioutil.ReadDir("/sys/bus/usb/devices")
+	if err != nil {
+		return err
+	}
+	if len(fis) == 0 {
+		return fmt.Errorf("no USB devices found!")
+	}
+	return nil
+}
+
 func main() {
 	result := "SUCCESS\n"
 
 	if err := testMacAddress(); err != nil {
 		result = fmt.Sprintf("FAILURE: testMacAddress: %v\n", err)
+	}
+
+	if err := testUSB(); err != nil {
+		result = fmt.Sprintf("FAILURE: testUSB: %v\n", err)
 	}
 
 	log.Print(result)
