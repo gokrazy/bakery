@@ -10,6 +10,18 @@ import (
 	"time"
 )
 
+var (
+	knownMacPrefixes = []struct {
+		prefix string
+		vendor string
+	}{
+		{"b8:27:eb:", "Raspberry Pi Foundation"},
+		{"dc:a6:32:", "Raspberry Pi Trading Ltd"},
+		{"00:0d:b9:", "PC Engines GmbH"},
+		{"00:1e:06:", "WIBRAIN/Odroid"},
+	}
+)
+
 func testMacAddress() error {
 	var b []byte
 	for i := 0; i < 10; i++ {
@@ -24,12 +36,19 @@ func testMacAddress() error {
 		time.Sleep(time.Duration(i) * time.Second)
 	}
 
-	if !strings.HasPrefix(string(b), "b8:27:eb:") &&
-		!strings.HasPrefix(string(b), "dc:a6:32:") &&
-		!strings.HasPrefix(string(b), "00:0d:b9:") {
-		return fmt.Errorf("MAC address %q does not start with any of:\n\tb8:27:eb: (Raspberry Pi Foundation)\n\tdc:a6:32: (Raspberry Pi Trading Ltd)\n\t00:0d:b9: (PC Engines GmbH)", string(b))
+	for _, knownMacPrefix := range knownMacPrefixes {
+		if strings.HasPrefix(string(b), knownMacPrefix.prefix) {
+			return nil
+		}
 	}
-	return nil
+
+	var errStr strings.Builder
+	fmt.Fprintf(&errStr, "MAC address %q does not start with any of:\n", string(b))
+	for _, knownMacPrefix := range knownMacPrefixes {
+		fmt.Fprintf(&errStr, "\t%s (%s)\n", knownMacPrefix.prefix, knownMacPrefix.vendor)
+	}
+
+	return fmt.Errorf(errStr.String())
 }
 
 func testUSB() error {
