@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -26,6 +27,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 
+	"github.com/gokrazy/bakery/internal/ping"
 	"github.com/gokrazy/internal/fat"
 	"github.com/gokrazy/internal/mbr"
 	"github.com/gokrazy/updater"
@@ -458,6 +460,37 @@ func serialHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// pingBakeries attempts to reach all configured bakeries via ICMP ping and
+// returns nil on success, or an error describing which bakeries are
+// unreachable.
+func pingBakeries(ctx context.Context) error {
+	results := make([]time.Duration, len(bakeries))
+
+	var eg errgroup.Group
+	for idx, b := range bakeries {
+		idx, b := idx, b // copy
+		eg.Go(func() error {
+			ctx, canc := context.WithTimeout(ctx, 1*time.Second)
+			defer canc()
+			dur, err := ping.PingUnprivileged(ctx, b.Hostname)
+			if err != nil {
+				return fmt.Errorf("ping %s: %v", b.Name, err)
+			}
+			results[idx] = dur
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func pingHandler(w http.ResponseWriter, r *http.Request) {
+	err := pingBakeries(r.Context())
+	fmt.Fprintf(w, "err=%v\n", err)
+}
+
 func loadBakeries() error {
 	f, err := os.Open("/perm/bootery/bakeries.json")
 	if err != nil {
@@ -483,8 +516,16 @@ func loadHTTPPassword() error {
 	return nil
 }
 
+func enableUnprivilegedPing() error {
+	return ioutil.WriteFile("/proc/sys/net/ipv4/ping_group_range", []byte("0\t2147483647"), 0600)
+}
+
 func main() {
 	flag.Parse()
+
+	if err := enableUnprivilegedPing(); err != nil {
+		log.Fatal(err)
+	}
 
 	if err := loadBakeries(); err != nil {
 		log.Fatal(err)
@@ -502,5 +543,6 @@ func main() {
 
 	http.HandleFunc("/testboot", authenticated(testbootHandler))
 	http.HandleFunc("/serial", authenticated(serialHandler))
+	http.HandleFunc("/ping", authenticated(pingHandler))
 	log.Fatal(http.ListenAndServe(*listen, nil))
 }
