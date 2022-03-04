@@ -27,6 +27,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/gokrazy/bakery/internal/ping"
 	"github.com/gokrazy/internal/fat"
 	"github.com/gokrazy/internal/mbr"
@@ -376,11 +377,24 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	if err := pm.use(); err != nil {
+		log.Printf("pm.use: %v", err)
+	}
+	defer func() {
+		if err := pm.release(); err != nil {
+			log.Printf("pm.release: %v", err)
+		}
+	}()
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("testing boot image failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if err := pm.awaitHealthy(r.Context()); err != nil {
+		log.Printf("pm.awaitHealthy: %v", err)
 	}
 
 	var buf bytes.Buffer
@@ -491,6 +505,118 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "err=%v\n", err)
 }
 
+var pm = &powerManager{}
+
+type powerManager struct {
+	tasmotaTopic string
+
+	mqtt mqtt.Client
+
+	mu    sync.Mutex
+	users int
+}
+
+func (pm *powerManager) init() error {
+	var powerManagerConfig struct {
+		// e.g. tcp://10.0.0.54:1883, which is a static DHCP lease for the dr.lan
+		// Raspberry Pi, which is running an MQTT broker in my network.
+		MQTTBroker string `json:"mqtt_broker"`
+		// e.g. cmnd/tasmota_B79957/Power
+		TasmotaTopic string `json:"tasmota_topic"`
+	}
+	f, err := os.Open("/perm/bootery/powermanager.json")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // no power management desired
+		}
+		return err
+	}
+	defer f.Close()
+	if err := json.NewDecoder(f).Decode(&powerManagerConfig); err != nil {
+		return err
+	}
+
+	pm.tasmotaTopic = powerManagerConfig.TasmotaTopic
+
+	log.Printf("Connecting to MQTT broker %q", powerManagerConfig.MQTTBroker)
+	opts := mqtt.NewClientOptions().AddBroker(powerManagerConfig.MQTTBroker)
+	hostname := ""
+	if h, err := os.Hostname(); err == nil {
+		hostname = h
+	}
+	opts.SetClientID("bootery@" + hostname)
+	opts.SetConnectRetry(true)
+	mqttClient := mqtt.NewClient(opts)
+	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
+		return fmt.Errorf("MQTT connection failed: %v", token.Error())
+	}
+	log.Printf("MQTT connected, controlling tasmota via topic %q", pm.tasmotaTopic)
+	pm.mqtt = mqttClient
+	return nil
+}
+
+func (pm *powerManager) power(payload string) error {
+	if pm.mqtt == nil {
+		return nil // no power management possible
+	}
+	log.Printf("power(%s)", payload)
+	token := pm.mqtt.Publish(pm.tasmotaTopic, 0 /* qos */, false, payload)
+	if token.Wait() && token.Error() != nil {
+		return token.Error()
+	}
+	return nil
+}
+
+func (pm *powerManager) use() error {
+	pm.mu.Lock()
+	pm.users++
+	log.Printf("use(), users=%d", pm.users)
+	pm.mu.Unlock()
+
+	return pm.power("ON")
+}
+
+func (pm *powerManager) release() error {
+	pm.mu.Lock()
+	pm.users--
+	log.Printf("release(), users=%d", pm.users)
+	pm.mu.Unlock()
+
+	go func() {
+		time.Sleep(10 * time.Minute)
+
+		pm.mu.Lock()
+		anyUsers := pm.users > 0
+		pm.mu.Unlock()
+		if anyUsers {
+			return // some other release() call will check
+		}
+		if err := pm.power("OFF"); err != nil {
+			log.Printf("auto power-off: %v", err)
+		}
+	}()
+
+	return nil
+}
+
+func (pm *powerManager) awaitHealthy(ctx context.Context) (err error) {
+	if pm.mqtt == nil {
+		return nil // no power management possible
+	}
+	log.Printf("awaitHealthy")
+	defer func() {
+		log.Printf("awaitHealthy returns err=%v", err)
+	}()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := pingBakeries(ctx); err == nil {
+			return nil
+		}
+	}
+}
+
 func loadBakeries() error {
 	f, err := os.Open("/perm/bootery/bakeries.json")
 	if err != nil {
@@ -520,29 +646,39 @@ func enableUnprivilegedPing() error {
 	return ioutil.WriteFile("/proc/sys/net/ipv4/ping_group_range", []byte("0\t2147483647"), 0600)
 }
 
-func main() {
+func bootery() error {
 	flag.Parse()
 
 	if err := enableUnprivilegedPing(); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if err := loadBakeries(); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if err := loadHTTPPassword(); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	for _, b := range bakeries {
 		if err := b.init(); err != nil {
-			log.Fatal(err)
+			return err
 		}
+	}
+
+	if err := pm.init(); err != nil {
+		return err
 	}
 
 	http.HandleFunc("/testboot", authenticated(testbootHandler))
 	http.HandleFunc("/serial", authenticated(serialHandler))
 	http.HandleFunc("/ping", authenticated(pingHandler))
-	log.Fatal(http.ListenAndServe(*listen, nil))
+	return http.ListenAndServe(*listen, nil)
+}
+
+func main() {
+	if err := bootery(); err != nil {
+		log.Fatal(err)
+	}
 }
