@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -111,12 +112,14 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		r.Body.Close()
 	}()
 
-	if err := testboot(&prefixWriter{w: w, prefix: "[qemu] "}); err != nil {
+	var buf bytes.Buffer
+	if err := testboot(&prefixWriter{w: &buf, prefix: "[qemu] "}); err != nil {
 		log.Printf("testing boot image failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	log.Printf("boot image test succeeded")
+	io.Copy(w, &buf)
 }
 
 func main() {
