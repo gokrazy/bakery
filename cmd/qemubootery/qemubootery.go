@@ -69,7 +69,8 @@ func testboot(w io.Writer) error {
 		"-nographic",
 		"-boot", "order=d",
 		"-drive", "file="+f.Name()+",format=raw",
-		"-net", "nic,macaddr=b8:27:eb:12:34:56")
+		"-net", "nic,macaddr=b8:27:eb:12:34:56",
+		"-usb")
 	log.Printf("starting qemu: %v", qemu.Args)
 	stdout, err := qemu.StdoutPipe()
 	if err != nil {
