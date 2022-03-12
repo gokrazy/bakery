@@ -224,40 +224,49 @@ func (b *bakery) init() error {
 
 var timestampsRe = regexp.MustCompile(`boot=(\d+) root=(\d+)`)
 
-func (b *bakery) waitForSuccess(w io.Writer, newerT time.Time) error {
+func (b *bakery) waitForSuccess(ctx context.Context, w io.Writer, newerT time.Time) error {
 	var successFound, timestampsFound bool
-	for line := range b.serial {
-		fmt.Fprintln(w, line)
-		log.Printf("[%s] %s", b.Name, line)
-		if strings.Contains(line, "boot=") && strings.Contains(line, "root=") {
-			timestampsFound = true
-			matches := timestampsRe.FindStringSubmatch(line)
-			if len(matches) < 3 {
-				return fmt.Errorf("line %q: regexp %v did not match", line, timestampsRe)
+	for {
+		select {
+		case line := <-b.serial:
+			fmt.Fprintln(w, line)
+			log.Printf("[%s] %s", b.Name, line)
+			if strings.Contains(line, "boot=") && strings.Contains(line, "root=") {
+				timestampsFound = true
+				matches := timestampsRe.FindStringSubmatch(line)
+				if len(matches) < 3 {
+					return fmt.Errorf("line %q: regexp %v did not match", line, timestampsRe)
+				}
+				log.Printf("matches: %q", matches)
+				bootU, err := strconv.ParseInt(matches[1], 0, 64)
+				if err != nil {
+					return err
+				}
+				// e.g. 2020/07/07 09:17:24 bootU = 1594103608
+				log.Printf("bootU = %d", bootU)
+				bootT := time.Unix(bootU, 0)
+				if !newerT.IsZero() && !bootT.After(newerT) {
+					return fmt.Errorf("boot timestamp %v is not newer than %v", bootT, newerT)
+				}
 			}
-			log.Printf("matches: %q", matches)
-			bootU, err := strconv.ParseInt(matches[1], 0, 64)
-			if err != nil {
-				return err
+			if line == "SUCCESS" {
+				successFound = true
 			}
-			// e.g. 2020/07/07 09:17:24 bootU = 1594103608
-			log.Printf("bootU = %d", bootU)
-			bootT := time.Unix(bootU, 0)
-			if !newerT.IsZero() && !bootT.After(newerT) {
-				return fmt.Errorf("boot timestamp %v is not newer than %v", bootT, newerT)
+			if successFound && timestampsFound {
+				return nil
 			}
-		}
-		if line == "SUCCESS" {
-			successFound = true
-		}
-		if successFound && timestampsFound {
-			return nil
+
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
-	return fmt.Errorf("did not find SUCCESS message in boot log on serial port")
 }
 
-func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte, newerT time.Time) error {
+func (b *bakery) testboot(ctx context.Context, w io.Writer, bootImg io.Reader, mbr []byte, newerT time.Time) error {
+	// Limit one individual testboot call to 30 minutes
+	ctx, canc := context.WithTimeout(ctx, 30*time.Minute)
+	defer canc()
+
 	log.Printf("installing new boot image on bakery %q", b.Name)
 	target, err := updater.NewTarget(b.BaseURL, http.DefaultClient)
 	if err != nil {
@@ -281,8 +290,8 @@ func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte, newerT tim
 	}
 
 	log.Printf("waiting for SUCCESS message in boot log on serial port")
-	if err := b.waitForSuccess(w, newerT); err != nil {
-		return err
+	if err := b.waitForSuccess(ctx, w, newerT); err != nil {
+		return fmt.Errorf("did not find SUCCESS message in boot log on serial port: %v", err)
 	}
 
 	// TODO: wait until bakery responds to pings
@@ -353,6 +362,8 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
+
 	// verify that the booted image is newer than the specified timestamp
 	newer := r.FormValue("boot-newer")
 	var newerT time.Time
@@ -391,7 +402,7 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := pm.awaitHealthy(r.Context()); err != nil {
+	if err := pm.awaitHealthy(ctx); err != nil {
 		log.Printf("pm.awaitHealthy: %v", err)
 	}
 
@@ -418,6 +429,7 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 			return b.testboot(
+				ctx,
 				&prefixWriter{w: &buf, prefix: "[" + b.Name + "] "},
 				bytes.NewReader(body),
 				mbr,
