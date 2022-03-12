@@ -515,6 +515,27 @@ func pingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "err=%v\n", err)
 }
 
+func powerHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if strings.HasSuffix(r.URL.Path, "/off") {
+		// Turn power off again:
+		if err := pm.release(); err != nil {
+			log.Printf("pm.release: %v", err)
+		}
+		return
+	}
+
+	// Turn power on:
+	if err := pm.use(); err != nil {
+		log.Printf("pm.use: %v", err)
+	}
+
+	if err := pm.awaitHealthy(ctx); err != nil {
+		log.Printf("pm.awaitHealthy: %v", err)
+	}
+}
+
 var pm = &powerManager{}
 
 type powerManager struct {
@@ -684,6 +705,7 @@ func bootery() error {
 	http.HandleFunc("/testboot", authenticated(testbootHandler))
 	http.HandleFunc("/serial", authenticated(serialHandler))
 	http.HandleFunc("/ping", authenticated(pingHandler))
+	http.HandleFunc("/power/", authenticated(powerHandler))
 	return http.ListenAndServe(*listen, nil)
 }
 
