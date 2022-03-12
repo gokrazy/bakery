@@ -258,8 +258,6 @@ func (b *bakery) waitForSuccess(w io.Writer, newerT time.Time) error {
 }
 
 func (b *bakery) testboot(w io.Writer, bootImg io.Reader, mbr []byte, newerT time.Time) error {
-	// TODO(later): power off/on bakery raspberry pi via homematic to save power
-
 	log.Printf("installing new boot image on bakery %q", b.Name)
 	target, err := updater.NewTarget(b.BaseURL, http.DefaultClient)
 	if err != nil {
