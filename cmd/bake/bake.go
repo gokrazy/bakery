@@ -107,7 +107,7 @@ func testWifi(ssid, psk string) error {
 	}
 
 	start := time.Now()
-	timeout := 30 * time.Second
+	timeout := 60 * time.Second
 	go func() {
 		log.Printf("starting wifi program for network %q (timeout: %v)", ssid, timeout)
 		for time.Since(start) < timeout {
