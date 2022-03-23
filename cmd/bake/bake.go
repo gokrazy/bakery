@@ -194,15 +194,23 @@ func main() {
 	}
 
 	model := gokrazy.Model()
-	if strings.HasPrefix(model, "Raspberry Pi 4 Model B Rev ") ||
+
+	supportsEncryptedWifi := strings.HasPrefix(model, "Raspberry Pi 4 Model B Rev ") ||
 		strings.HasPrefix(model, "Raspberry Pi 3 Model B Rev ") ||
-		strings.HasPrefix(model, "Raspberry Pi 3 Model B Plus Rev ") {
+		strings.HasPrefix(model, "Raspberry Pi 3 Model B Plus Rev ")
+
+	supportsUnencryptedWifi := supportsEncryptedWifi ||
+		strings.HasPrefix(model, "Raspberry Pi Zero 2 W Rev ")
+
+	if supportsUnencryptedWifi {
 		if err := testUnencryptedWifi(); err != nil {
 			result = fmt.Sprintf("FAILURE: testUnencryptedWifi: %v\n", err)
 		}
 
 		time.Sleep(1 * time.Second)
+	}
 
+	if supportsEncryptedWifi {
 		if err := testEncryptedWifi(); err != nil {
 			result = fmt.Sprintf("FAILURE: testEncryptedWifi: %v\n", err)
 		}
