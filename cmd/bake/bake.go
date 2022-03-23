@@ -25,6 +25,7 @@ var (
 		{"dc:a6:32:", "Raspberry Pi Trading Ltd"},
 		{"00:0d:b9:", "PC Engines GmbH"},
 		{"00:1e:06:", "WIBRAIN/Odroid"},
+		{"a0:ce:c8:", "CE LINK Limited"}, // USB-to-ethernet adapter on the Pi Zero 2 W
 	}
 )
 
