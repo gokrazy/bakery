@@ -198,10 +198,10 @@ func main() {
 
 	supportsEncryptedWifi := strings.HasPrefix(model, "Raspberry Pi 4 Model B Rev ") ||
 		strings.HasPrefix(model, "Raspberry Pi 3 Model B Rev ") ||
-		strings.HasPrefix(model, "Raspberry Pi 3 Model B Plus Rev ")
-
-	supportsUnencryptedWifi := supportsEncryptedWifi ||
+		strings.HasPrefix(model, "Raspberry Pi 3 Model B Plus Rev ") ||
 		strings.HasPrefix(model, "Raspberry Pi Zero 2 W Rev ")
+
+	supportsUnencryptedWifi := supportsEncryptedWifi
 
 	if supportsUnencryptedWifi {
 		if err := testUnencryptedWifi(); err != nil {
