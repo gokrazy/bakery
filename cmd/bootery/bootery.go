@@ -287,6 +287,11 @@ func (b *bakery) testboot(ctx context.Context, w io.Writer, bootImg io.Reader, m
 			return fmt.Errorf("updating MBR: %v", err)
 		}
 	}
+	if updateRoot {
+		if err := target.Switch(); err != nil {
+			return err
+		}
+	}
 
 	log.Printf("rebooting bakery %q", b.Name)
 	if err := target.Reboot(); err != nil {
@@ -333,6 +338,17 @@ func filterBakeries(slug string) []*bakery {
 	return filtered
 }
 
+func filterBakeriesByHostname(hostname string) []*bakery {
+	var filtered []*bakery
+	for _, b := range bakeries {
+		if b.Hostname != hostname {
+			continue
+		}
+		filtered = append(filtered, b)
+	}
+	return filtered
+}
+
 func derivePartUUID(hostname string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(hostname))
@@ -366,41 +382,26 @@ func updateRootHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
-
-	slug := r.FormValue("slug")
-	if slug == "" {
-		http.Error(w, "empty slug parameter", http.StatusBadRequest)
+	hostname := r.FormValue("hostname")
+	if hostname == "" {
+		http.Error(w, "empty hostname parameter", http.StatusBadRequest)
 		return
 	}
 
-	filtered := filterBakeries(slug)
+	filtered := filterBakeriesByHostname(hostname)
 	if len(filtered) == 0 {
-		http.Error(w, fmt.Sprintf("no bakery instances configured for slug %q", slug), http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("no bakery instances configured for hostname %q", hostname), http.StatusNotFound)
 		return
 	}
 
 	mu.Lock()
 	defer mu.Unlock()
 
-	if err := pm.use(); err != nil {
-		log.Printf("pm.use: %v", err)
-	}
-	defer func() {
-		if err := pm.release(); err != nil {
-			log.Printf("pm.release: %v", err)
-		}
-	}()
-
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("testing boot image failed: %v", err)
+		log.Printf("updating root image failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	if err := pm.awaitHealthy(ctx); err != nil {
-		log.Printf("pm.awaitHealthy: %v", err)
 	}
 
 	var buf bytes.Buffer
@@ -418,10 +419,6 @@ func updateRootHandler(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 
-			if err := target.Switch(); err != nil {
-				return err
-			}
-
 			return nil
 		})
 	}
@@ -432,6 +429,59 @@ func updateRootHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	io.Copy(w, &buf)
 	log.Printf("root image update succeeded")
+}
+
+func useBakeriesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "expected a PUT request", http.StatusBadRequest)
+		return
+	}
+
+	slug := r.FormValue("slug")
+	if slug == "" {
+		http.Error(w, "empty slug parameter", http.StatusBadRequest)
+		return
+	}
+
+	filtered := filterBakeries(slug)
+	if len(filtered) == 0 {
+		http.Error(w, fmt.Sprintf("no bakery instances configured for slug %q", slug), http.StatusNotFound)
+		return
+	}
+
+	if err := pm.use(); err != nil {
+		log.Printf("pm.use: %v", err)
+	}
+
+	ctx := r.Context()
+	if err := pm.awaitHealthy(ctx); err != nil {
+		log.Printf("pm.awaitHealthy: %v", err)
+	}
+
+	var useReply struct {
+		Hosts []string `json:"hosts"`
+	}
+	for _, b := range filtered {
+		useReply.Hosts = append(useReply.Hosts, b.Hostname)
+	}
+	b, err := json.Marshal(&useReply)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	io.Copy(w, bytes.NewReader(b))
+}
+
+func releaseBakeriesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "expected a PUT request", http.StatusBadRequest)
+		return
+	}
+
+	if err := pm.release(); err != nil {
+		log.Printf("pm.release: %v", err)
+	}
 }
 
 func testbootHandler(w http.ResponseWriter, r *http.Request) {
@@ -475,15 +525,55 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
+	if err := testbootCommon(ctx, w, r, newerT, filtered, updateRoot == "true"); err != nil {
 		log.Printf("testing boot image failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
 
-	if err := pm.awaitHealthy(ctx); err != nil {
-		log.Printf("pm.awaitHealthy: %v", err)
+func testboot1Handler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "expected a PUT request", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// verify that the booted image is newer than the specified timestamp
+	newer := r.FormValue("boot-newer")
+	var newerT time.Time
+	if v, err := strconv.ParseInt(newer, 10, 64); err == nil && v > 0 {
+		newerT = time.Unix(v, 0)
+	}
+
+	hostname := r.FormValue("hostname")
+	if hostname == "" {
+		http.Error(w, "empty hostname parameter", http.StatusBadRequest)
+		return
+	}
+
+	updateRoot := r.FormValue("update_root")
+
+	filtered := filterBakeriesByHostname(hostname)
+	if len(filtered) == 0 {
+		http.Error(w, fmt.Sprintf("no bakery instances configured for hostname %q", hostname), http.StatusNotFound)
+		return
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if err := testbootCommon(ctx, w, r, newerT, filtered, updateRoot == "true"); err != nil {
+		log.Printf("testing boot image failed: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func testbootCommon(ctx context.Context, w http.ResponseWriter, r *http.Request, newerT time.Time, filtered []*bakery, updateRoot bool) error {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
 	}
 
 	var buf bytes.Buffer
@@ -514,16 +604,15 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 				bytes.NewReader(body),
 				mbr,
 				newerT,
-				updateRoot == "true")
+				updateRoot)
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		log.Printf("testing boot image failed: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	io.Copy(w, &buf)
 	log.Printf("boot image test succeeded")
+	return nil
 }
 
 func serialHandler(w http.ResponseWriter, r *http.Request) {
@@ -783,7 +872,10 @@ func bootery() error {
 		return err
 	}
 
+	http.HandleFunc("/usebakeries", authenticated(useBakeriesHandler))
+	http.HandleFunc("/releasebakeries", authenticated(releaseBakeriesHandler))
 	http.HandleFunc("/testboot", authenticated(testbootHandler))
+	http.HandleFunc("/testboot1", authenticated(testboot1Handler))
 	http.HandleFunc("/updateroot", authenticated(updateRootHandler))
 	http.HandleFunc("/serial", authenticated(serialHandler))
 	http.HandleFunc("/ping", authenticated(pingHandler))
