@@ -262,18 +262,22 @@ func (b *bakery) waitForSuccess(ctx context.Context, w io.Writer, newerT time.Ti
 	}
 }
 
-func (b *bakery) testboot(ctx context.Context, w io.Writer, bootImg io.Reader, mbr []byte, newerT time.Time) error {
+func (b *bakery) testboot(ctx context.Context, w io.Writer, bootImg io.Reader, mbr []byte, newerT time.Time, updateRoot bool) error {
 	// Limit one individual testboot call to 30 minutes
 	ctx, canc := context.WithTimeout(ctx, 30*time.Minute)
 	defer canc()
 
-	log.Printf("installing new boot image on bakery %q", b.Name)
+	log.Printf("installing new boot image on bakery %q (updateRoot=%v)", b.Name, updateRoot)
 	target, err := updater.NewTarget(b.BaseURL, http.DefaultClient)
 	if err != nil {
 		return err
 	}
 
-	if err := target.StreamTo("bootonly", bootImg); err != nil {
+	dest := "bootonly" // keep current root partition
+	if updateRoot {
+		dest = "boot" // switch to inactive root partition
+	}
+	if err := target.StreamTo(dest, bootImg); err != nil {
 		return err
 	}
 	if err := target.StreamTo("mbr", bytes.NewReader(mbr)); err != nil {
@@ -356,6 +360,80 @@ func mbrFor(f io.ReadSeeker, partuuid uint32) ([]byte, error) {
 	return mbr[:], nil
 }
 
+func updateRootHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "expected a PUT request", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	slug := r.FormValue("slug")
+	if slug == "" {
+		http.Error(w, "empty slug parameter", http.StatusBadRequest)
+		return
+	}
+
+	filtered := filterBakeries(slug)
+	if len(filtered) == 0 {
+		http.Error(w, fmt.Sprintf("no bakery instances configured for slug %q", slug), http.StatusNotFound)
+		return
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if err := pm.use(); err != nil {
+		log.Printf("pm.use: %v", err)
+	}
+	defer func() {
+		if err := pm.release(); err != nil {
+			log.Printf("pm.release: %v", err)
+		}
+	}()
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("testing boot image failed: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := pm.awaitHealthy(ctx); err != nil {
+		log.Printf("pm.awaitHealthy: %v", err)
+	}
+
+	var buf bytes.Buffer
+	var eg errgroup.Group
+	for _, b := range filtered {
+		b := b // copy
+		eg.Go(func() error {
+			log.Printf("installing new root image on bakery %q", b.Name)
+			target, err := updater.NewTarget(b.BaseURL, http.DefaultClient)
+			if err != nil {
+				return err
+			}
+
+			if err := target.StreamTo("root", bytes.NewReader(body)); err != nil {
+				return err
+			}
+
+			if err := target.Switch(); err != nil {
+				return err
+			}
+
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		log.Printf("updating root image failed: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	io.Copy(w, &buf)
+	log.Printf("root image update succeeded")
+}
+
 func testbootHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
 		http.Error(w, "expected a PUT request", http.StatusBadRequest)
@@ -376,6 +454,8 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "empty slug parameter", http.StatusBadRequest)
 		return
 	}
+
+	updateRoot := r.FormValue("update_root")
 
 	filtered := filterBakeries(slug)
 	if len(filtered) == 0 {
@@ -433,7 +513,8 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 				&prefixWriter{w: &buf, prefix: "[" + b.Name + "] "},
 				bytes.NewReader(body),
 				mbr,
-				newerT)
+				newerT,
+				updateRoot == "true")
 		})
 	}
 	if err := eg.Wait(); err != nil {
@@ -703,6 +784,7 @@ func bootery() error {
 	}
 
 	http.HandleFunc("/testboot", authenticated(testbootHandler))
+	http.HandleFunc("/updateroot", authenticated(updateRootHandler))
 	http.HandleFunc("/serial", authenticated(serialHandler))
 	http.HandleFunc("/ping", authenticated(pingHandler))
 	http.HandleFunc("/power/", authenticated(powerHandler))
