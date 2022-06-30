@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -23,6 +24,39 @@ var (
 		"localhost:8037",
 		"[host]:port to serve HTTP requests on")
 )
+
+func useBakeriesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "expected a PUT request", http.StatusBadRequest)
+		return
+	}
+
+	slug := r.FormValue("slug")
+	if slug == "" {
+		http.Error(w, "empty slug parameter", http.StatusBadRequest)
+		return
+	}
+
+	useReply := struct {
+		Hosts []string `json:"hosts"`
+	}{
+		Hosts: []string{"qemubootery"},
+	}
+	b, err := json.Marshal(&useReply)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	io.Copy(w, bytes.NewReader(b))
+}
+
+func releaseBakeriesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "expected a PUT request", http.StatusBadRequest)
+		return
+	}
+}
 
 func waitForSuccess(scanner *bufio.Scanner, w io.Writer) error {
 	for scanner.Scan() {
@@ -126,6 +160,9 @@ func testbootHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 
+	http.HandleFunc("/usebakeries", useBakeriesHandler)
+	http.HandleFunc("/releasebakeries", releaseBakeriesHandler)
 	http.HandleFunc("/testboot", testbootHandler)
+	http.HandleFunc("/testboot1", testbootHandler)
 	log.Fatal(http.ListenAndServe(*listen, nil))
 }
