@@ -1,16 +1,15 @@
-The bakery is part of the
-[gokrazy](https://github.com/gokrazy/gokrazy) project. It consists of
-a set of programs, installed on two different Raspberry Pi 3s at
+The bakery is part of the [gokrazy](https://gokrazy.org/) project. It consists
+of a set of programs, installed on multiple different Raspberry Pis at
 [stapelberg](https://github.com/stapelberg)’s place:
 
- * One “sacrificial” Raspberry Pi 3 (`bakery`) is running a gokrazy
-   image with the `bake` program. The program prints success messages
-   to the serial console.
+ * A number of “sacrificial” Raspberry Pis (`bakery`, `bakery4`, `bakeryzero2w`,
+   etc.) are running a gokrazy image with the `bake` program. The program prints
+   success messages to the serial console.
  * The `bootery` program installs updated gokrazy images on the
-   `bakery` Raspberry Pi 3 and waits for the success messages printed
-   by the `bake` program (the Raspberry Pi 3 running `bootery` is
+   `bakery` Raspberry Pis and waits for the success messages printed
+   by the `bake` program (the Raspberry Pi running `bootery` is
    physically connected to the serial console of the `bakery`
-   Raspberry Pi 3).
+   Raspberry Pi).
 
 The `bootery` program is used in our continuous integration setup to
 verify that new [firmware](https://github.com/gokrazy/firmware) and
@@ -20,9 +19,5 @@ real hardware.
 ## Setup
 
 ```
-~/go/bin/gokr-packer \
-  -hostname=bakery \
-  -overwrite=/dev/sdx \
-  github.com/gokrazy/breakglass \
-  github.com/gokrazy/bakery/cmd/bake
+gok add github.com/gokrazy/bakery/cmd/bake
 ```
