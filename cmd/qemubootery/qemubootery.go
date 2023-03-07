@@ -84,6 +84,7 @@ func testboot(w io.Writer) error {
 	// gokrazy-machine is merged.
 	packer := exec.Command("gok",
 		"overwrite",
+		"--target_storage_bytes=1258299392",
 		"--full="+f.Name())
 	packer.Env = append(os.Environ(), "GOARCH=amd64")
 	packer.Stdout = os.Stdout
