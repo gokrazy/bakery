@@ -80,14 +80,11 @@ func testboot(w io.Writer) error {
 	}
 	f.Close()
 
-	packer := exec.Command("gokr-packer",
-		"-hostname=qemubakery",
-		"-kernel_package=github.com/rtr7/kernel",
-		"-firmware_package=github.com/rtr7/kernel",
-		"-overwrite="+f.Name(),
-		"-target_storage_bytes=1258299392",
-		"-serial_console=ttyS0,115200",
-		"github.com/gokrazy/bakery/cmd/bake")
+	// TODO: do not re-create the image, but use the uploaded one once
+	// gokrazy-machine is merged.
+	packer := exec.Command("gok",
+		"overwrite",
+		"--full="+f.Name())
 	packer.Env = append(os.Environ(), "GOARCH=amd64")
 	packer.Stdout = os.Stdout
 	packer.Stderr = os.Stderr
