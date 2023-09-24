@@ -217,6 +217,10 @@ func main() {
 		}
 	}
 
+	// Delay printing the result to /dev/console to increase the chance that the
+	// serial output is quiet.
+	time.Sleep(3 * time.Second)
+
 	log.Print(result)
 
 	// No need to configure the serial port, the serial console is
