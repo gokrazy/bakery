@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -62,7 +63,7 @@ func waitForSuccess(scanner *bufio.Scanner, w io.Writer) error {
 	for scanner.Scan() {
 		fmt.Fprintln(w, scanner.Text())
 		log.Printf("[qemu] %s", scanner.Text())
-		if scanner.Text() == "SUCCESS" {
+		if strings.Contains(scanner.Text(), "bake: SUCCESS") {
 			return nil
 		}
 	}
