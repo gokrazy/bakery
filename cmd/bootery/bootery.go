@@ -249,7 +249,7 @@ func (b *bakery) waitForSuccess(ctx context.Context, w io.Writer, newerT time.Ti
 					return fmt.Errorf("boot timestamp %v is not newer than %v", bootT, newerT)
 				}
 			}
-			if line == "SUCCESS" {
+			if line == "SUCCESS" || strings.Contains(line, "bake: SUCCESS") {
 				successFound = true
 			}
 			if successFound && timestampsFound {
