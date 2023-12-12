@@ -217,15 +217,13 @@ func main() {
 		}
 	}
 
-	// Delay printing the result to /dev/console to increase the chance that the
-	// serial output is quiet.
-	time.Sleep(3 * time.Second)
-
 	log.Print(result)
 
-	// No need to configure the serial port, the serial console is
-	// already set up.
-	if err := ioutil.WriteFile("/dev/console", []byte(result), 0644); err != nil {
+	// We used to print to /dev/console, but that output is often interleaved
+	// with kernel dmesg output which is also configured to go to the serial
+	// port. Instead of fighting with the kernel message system, we embrace it
+	// and just log our own success message through it :)
+	if err := os.WriteFile("/dev/kmsg", []byte("bake: "+result), 0644); err != nil {
 		log.Fatal(err)
 	}
 
