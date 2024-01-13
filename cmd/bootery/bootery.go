@@ -294,7 +294,7 @@ func (b *bakery) testboot(ctx context.Context, w io.Writer, bootImg io.Reader, m
 	}
 
 	log.Printf("rebooting bakery %q", b.Name)
-	if err := target.Reboot(); err != nil {
+	if err := target.RebootWithoutKexec(); err != nil {
 		return err
 	}
 
