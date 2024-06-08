@@ -1,4 +1,5 @@
-//+build linux
+//go:build linux
+// +build linux
 
 package main
 
@@ -7,8 +8,8 @@ import (
 	"unsafe"
 )
 
-// ConfigureSerial configures fd as a 115200 baud 8N1 serial port.
-func ConfigureSerial(fd uintptr) error {
+// ConfigureSerial configures fd as a <serialBaudRate> baud 8N1 serial port.
+func ConfigureSerial(fd uintptr, serialBaudRate uint32) error {
 	var termios syscall.Termios
 	if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(syscall.TCGETS), uintptr(unsafe.Pointer(&termios))); err != 0 {
 		return err
@@ -17,9 +18,9 @@ func ConfigureSerial(fd uintptr) error {
 	termios.Iflag = 0
 	termios.Oflag = 0
 	termios.Lflag = 0
-	termios.Ispeed = syscall.B115200
-	termios.Ospeed = syscall.B115200
-	termios.Cflag = syscall.B115200 | syscall.CS8 | syscall.CREAD
+	termios.Ispeed = serialBaudRate
+	termios.Ospeed = serialBaudRate
+	termios.Cflag = serialBaudRate | syscall.CS8 | syscall.CREAD
 
 	// Block on a zero read (instead of returning EOF)
 	termios.Cc[syscall.VMIN] = 1
