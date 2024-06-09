@@ -273,7 +273,9 @@ func (b *bakery) waitForSuccess(ctx context.Context, w io.Writer, newerT time.Ti
 		case line := <-b.serial:
 			fmt.Fprintln(w, line)
 			log.Printf("[%s] %s", b.Name, line)
-			if strings.Contains(line, "boot=") && strings.Contains(line, "root=") {
+			if strings.Contains(line, "timestamps:") &&
+				strings.Contains(line, "boot=") &&
+				strings.Contains(line, "root=") {
 				timestampsFound = true
 				matches := timestampsRe.FindStringSubmatch(line)
 				if len(matches) < 3 {
