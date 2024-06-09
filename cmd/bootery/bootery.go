@@ -84,8 +84,29 @@ func findttyUSBSerial(serial string) (dev string, _ error) {
 		return "", err
 	}
 	for _, m := range matches {
-		usbUevent := "/sys/class/tty/" + strings.TrimPrefix(m, "/dev/") + "/device/../../serial"
-		b, err := ioutil.ReadFile(usbUevent)
+		basename := strings.TrimPrefix(m, "/dev/")
+		usbUevent := "/sys/class/tty/" + basename + "/device/../../serial"
+		b, err := os.ReadFile(usbUevent)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return "", err
+		}
+		if strings.TrimSpace(string(b)) == serial {
+			return m, nil
+		}
+	}
+	// ttyACM* devices like the Raspberry Pi Debug Probe use a subtly different
+	// path for their serial file -.-
+	matches, err = filepath.Glob("/dev/ttyACM*")
+	if err != nil {
+		return "", err
+	}
+	for _, m := range matches {
+		basename := strings.TrimPrefix(m, "/dev/")
+		usbUevent := "/sys/class/tty/" + basename + "/device/../serial"
+		b, err := os.ReadFile(usbUevent)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -106,7 +127,7 @@ func findttyUSBProduct(productLine string) (dev string, _ error) {
 	}
 	for _, m := range matches {
 		usbUevent := "/sys/class/tty/" + strings.TrimPrefix(m, "/dev/") + "/device/../uevent"
-		b, err := ioutil.ReadFile(usbUevent)
+		b, err := os.ReadFile(usbUevent)
 		if err != nil {
 			return "", err
 		}
