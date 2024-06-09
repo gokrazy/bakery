@@ -119,11 +119,23 @@ func findttyUSBProduct(productLine string) (dev string, _ error) {
 	return "", fmt.Errorf("device not found")
 }
 
+const (
+	DefaultSerialBaudRate = 115200
+)
+
+var (
+	knownSerialBaudRates = map[int]uint32{
+		115200:  unix.B115200,
+		1500000: unix.B1500000,
+	}
+)
+
 var bakeries []*bakery
 
 type bakery struct {
 	Name              string   `json:"name"`
 	BaseURL           string   `json:"base_url"`
+	SerialBaudRate    int      `json:"serial_baud_rate"`
 	SerialPort        string   `json:"serial_port"`
 	SerialProductLine string   `json:"serial_product_line"`
 	SerialUSBSerial   string   `json:"serial_usb_serial"`
@@ -190,13 +202,22 @@ func (b *bakery) init() error {
 		}
 		log.Printf("[%s] found serial port %s (serial %q)", b.Name, b.SerialPort, b.SerialUSBSerial)
 	}
-	log.Printf("[%s] opening 115200 8N1 serial port %s", b.Name, b.SerialPort)
+
+	if b.SerialBaudRate == 0 {
+		b.SerialBaudRate = DefaultSerialBaudRate
+	}
+	serialBaudRateInt, ok := knownSerialBaudRates[b.SerialBaudRate]
+	if !ok {
+		return fmt.Errorf("unknown serial baud rate %q", b.SerialBaudRate)
+	}
+
+	log.Printf("[%s] opening %d 8N1 serial port %s", b.Name, b.SerialBaudRate, b.SerialPort)
 
 	uart, err := os.OpenFile(b.SerialPort, os.O_EXCL|os.O_RDWR|unix.O_NOCTTY|unix.O_NONBLOCK, 0600)
 	if err != nil {
 		return err
 	}
-	if err := ConfigureSerial(uintptr(uart.Fd())); err != nil {
+	if err := ConfigureSerial(uintptr(uart.Fd()), serialBaudRateInt); err != nil {
 		return err
 	}
 
