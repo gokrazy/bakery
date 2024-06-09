@@ -23,6 +23,7 @@ var (
 	}{
 		{"b8:27:eb:", "Raspberry Pi Foundation"},
 		{"dc:a6:32:", "Raspberry Pi Trading Ltd"},
+		{"2c:cf:67:", "Raspberry Pi (Trading) Ltd"},
 		{"00:0d:b9:", "PC Engines GmbH"},
 		{"00:1e:06:", "WIBRAIN/Odroid"},
 		{"a0:ce:c8:", "CE LINK Limited"}, // USB-to-ethernet adapter on the Pi Zero 2 W
@@ -196,7 +197,8 @@ func main() {
 
 	model := gokrazy.Model()
 
-	supportsEncryptedWifi := strings.HasPrefix(model, "Raspberry Pi 4 Model B Rev ") ||
+	supportsEncryptedWifi := strings.HasPrefix(model, "Raspberry Pi 5 Model B Rev ") ||
+		strings.HasPrefix(model, "Raspberry Pi 4 Model B Rev ") ||
 		strings.HasPrefix(model, "Raspberry Pi 3 Model B Rev ") ||
 		strings.HasPrefix(model, "Raspberry Pi 3 Model B Plus Rev ") ||
 		strings.HasPrefix(model, "Raspberry Pi Zero 2 W Rev ")
