@@ -30,7 +30,7 @@ var (
 	}
 )
 
-func testMacAddress() error {
+func testMacAddress(disableMacAddressKnownPrefixCheck bool) error {
 	var b []byte
 	for i := 0; i < 10; i++ {
 		var err error
@@ -42,6 +42,15 @@ func testMacAddress() error {
 			break
 		}
 		time.Sleep(time.Duration(i) * time.Second)
+	}
+
+	if disableMacAddressKnownPrefixCheck {
+		// Only check if MAC address is set and valid. Don't check if it's in the known prefixes list.
+		// /sys/class/net/eth0/address contains => "aa:bb:cc:dd:ee:ff\n"
+		if len(b) == 18 {
+			return nil
+		}
+		return fmt.Errorf("Malformed MAC address: %s (len %d != %d)", b, len(b), 18)
 	}
 
 	for _, knownMacPrefix := range knownMacPrefixes {
@@ -186,16 +195,20 @@ func main() {
 	gokrazy.WaitForClock()
 
 	result := "SUCCESS\n"
+	model := gokrazy.Model()
 
-	if err := testMacAddress(); err != nil {
+	// Rock64 devices don't have an assigned MAC address from Pine64. From the factory, they
+	// come with the same MAC address. Instead of validating the OUI, simply assert they
+	// have some/any valid MAC address.
+	disableMacAddressKnownPrefixCheck := strings.HasPrefix(model, "Pine64 Rock64")
+
+	if err := testMacAddress(disableMacAddressKnownPrefixCheck); err != nil {
 		result = fmt.Sprintf("FAILURE: testMacAddress: %v\n", err)
 	}
 
 	if err := testUSB(); err != nil {
 		result = fmt.Sprintf("FAILURE: testUSB: %v\n", err)
 	}
-
-	model := gokrazy.Model()
 
 	supportsEncryptedWifi := strings.HasPrefix(model, "Raspberry Pi 5 Model B Rev ") ||
 		strings.HasPrefix(model, "Raspberry Pi 4 Model B Rev ") ||
