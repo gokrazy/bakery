@@ -24,6 +24,10 @@ var (
 	listen = flag.String("listen",
 		"localhost:8037",
 		"[host]:port to serve HTTP requests on")
+
+	arch = flag.String("arch",
+		"amd64",
+		"for which CPU architecture to build/test? (one of amd64 or arm64)")
 )
 
 func useBakeriesHandler(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +91,7 @@ func testboot(w io.Writer) error {
 		"overwrite",
 		"--target_storage_bytes=1258299392",
 		"--full="+f.Name())
-	packer.Env = append(os.Environ(), "GOARCH=amd64")
+	packer.Env = append(os.Environ(), "GOARCH="+*arch)
 	packer.Stdout = os.Stdout
 	packer.Stderr = os.Stderr
 	log.Printf("packing image: %v", packer.Args)
@@ -104,6 +108,19 @@ func testboot(w io.Writer) error {
 		"-drive", "file="+f.Name()+",format=raw",
 		"-net", "nic,macaddr=b8:27:eb:12:34:56",
 		"-usb")
+	if *arch == "arm64" {
+		qemu = exec.CommandContext(ctx, "qemu-system-aarch64",
+			"-nographic",
+			"-boot", "order=d",
+			"-drive", "file="+f.Name()+",format=raw",
+			"-net", "nic,macaddr=b8:27:eb:12:34:56",
+			"-M", "virt",
+			"-m", "1024",
+			"-smp", "2",
+			"-cpu", "max",
+			"-drive", "if=pflash,format=raw,file=efi.img,readonly=on",
+			"-drive", "if=pflash,format=raw,file=varstore.img")
+	}
 	log.Printf("starting qemu: %v", qemu.Args)
 	stdout, err := qemu.StdoutPipe()
 	if err != nil {
