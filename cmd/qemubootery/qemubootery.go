@@ -118,6 +118,7 @@ func testboot(w io.Writer) error {
 			"-m", "1024",
 			"-smp", "2",
 			"-cpu", "max",
+			"-usb",
 			"-drive", "if=pflash,format=raw,file=efi.img,readonly=on",
 			"-drive", "if=pflash,format=raw,file=varstore.img")
 	}
