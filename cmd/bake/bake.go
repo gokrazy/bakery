@@ -65,7 +65,7 @@ func testMacAddress(disableMacAddressKnownPrefixCheck bool) error {
 		fmt.Fprintf(&errStr, "\t%s (%s)\n", knownMacPrefix.prefix, knownMacPrefix.vendor)
 	}
 
-	return fmt.Errorf(errStr.String())
+	return fmt.Errorf("%s", errStr.String())
 }
 
 func testUSB() error {
