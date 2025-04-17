@@ -8,7 +8,7 @@ require (
 	github.com/gokrazy/internal v0.0.0-20220111191949-698f19a074ef
 	github.com/gokrazy/updater v0.0.0-20240113102150-4ac511a17e33
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 	golang.org/x/sync v0.12.0
 	golang.org/x/sys v0.31.0
 )
