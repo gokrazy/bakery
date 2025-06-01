@@ -6,7 +6,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.3.5
 	github.com/gokrazy/gokrazy v0.0.0-20220304072708-5dd8496371e3
 	github.com/gokrazy/internal v0.0.0-20220111191949-698f19a074ef
-	github.com/gokrazy/updater v0.0.0-20240113102150-4ac511a17e33
+	github.com/gokrazy/updater v0.0.0-20250601065453-91649328574c
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/net v0.38.0
 	golang.org/x/sync v0.12.0

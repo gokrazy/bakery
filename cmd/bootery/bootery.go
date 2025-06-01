@@ -312,7 +312,7 @@ func (b *bakery) testboot(ctx context.Context, w io.Writer, bootImg io.Reader, m
 	defer canc()
 
 	log.Printf("installing new boot image on bakery %q (updateRoot=%v)", b.Name, updateRoot)
-	target, err := updater.NewTarget(b.BaseURL, http.DefaultClient)
+	target, err := updater.NewTarget(ctx, b.BaseURL, http.DefaultClient)
 	if err != nil {
 		return err
 	}
@@ -321,10 +321,10 @@ func (b *bakery) testboot(ctx context.Context, w io.Writer, bootImg io.Reader, m
 	if updateRoot {
 		dest = "boot" // switch to inactive root partition
 	}
-	if err := target.StreamTo(dest, bootImg); err != nil {
+	if err := target.StreamTo(ctx, dest, bootImg); err != nil {
 		return err
 	}
-	if err := target.StreamTo("mbr", bytes.NewReader(mbr)); err != nil {
+	if err := target.StreamTo(ctx, "mbr", bytes.NewReader(mbr)); err != nil {
 		if err == updater.ErrUpdateHandlerNotImplemented {
 			log.Printf("target does not support updating MBR yet, ignoring")
 		} else {
@@ -332,13 +332,13 @@ func (b *bakery) testboot(ctx context.Context, w io.Writer, bootImg io.Reader, m
 		}
 	}
 	if updateRoot {
-		if err := target.Switch(); err != nil {
+		if err := target.Switch(ctx); err != nil {
 			return err
 		}
 	}
 
 	log.Printf("rebooting bakery %q", b.Name)
-	if err := target.RebootWithoutKexec(); err != nil {
+	if err := target.RebootWithoutKexec(ctx); err != nil {
 		return err
 	}
 
@@ -421,6 +421,8 @@ func mbrFor(f io.ReadSeeker, partuuid uint32) ([]byte, error) {
 }
 
 func updateRootHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
 	if r.Method != http.MethodPut {
 		http.Error(w, "expected a PUT request", http.StatusBadRequest)
 		return
@@ -454,12 +456,12 @@ func updateRootHandler(w http.ResponseWriter, r *http.Request) {
 		b := b // copy
 		eg.Go(func() error {
 			log.Printf("installing new root image on bakery %q", b.Name)
-			target, err := updater.NewTarget(b.BaseURL, http.DefaultClient)
+			target, err := updater.NewTarget(ctx, b.BaseURL, http.DefaultClient)
 			if err != nil {
 				return err
 			}
 
-			if err := target.StreamTo("root", bytes.NewReader(body)); err != nil {
+			if err := target.StreamTo(ctx, "root", bytes.NewReader(body)); err != nil {
 				return err
 			}
 

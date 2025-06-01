@@ -7,8 +7,8 @@ github.com/gokrazy/gokrazy v0.0.0-20220304072708-5dd8496371e3 h1:xwmxNbDaZcF5a04
 github.com/gokrazy/gokrazy v0.0.0-20220304072708-5dd8496371e3/go.mod h1:lhYUrZe1PD+q/MhoNMVoKm9F3CsE64oQhaOyoeB8qdU=
 github.com/gokrazy/internal v0.0.0-20220111191949-698f19a074ef h1:ymGWpZu9Ug4lTMlVslD+iB6K+zvSqh93sHKx/kyPwlw=
 github.com/gokrazy/internal v0.0.0-20220111191949-698f19a074ef/go.mod h1:Gc9sU6yJ/qxg3gJZ1pjfcTAULa0swdTa4TH51g1e00E=
-github.com/gokrazy/updater v0.0.0-20240113102150-4ac511a17e33 h1:m6NVAznErzAL9fzaIh+HeFbbImxV6ku4iaUUHhYctmg=
-github.com/gokrazy/updater v0.0.0-20240113102150-4ac511a17e33/go.mod h1:PYOvzGOL4nlBmuxu7IyKQTFLaxr61+WPRNRzVtuYOHw=
+github.com/gokrazy/updater v0.0.0-20250601065453-91649328574c h1:a8dmMwaooonr7TdDG+UWD97zEPxaEp9R11woElaQ+nE=
+github.com/gokrazy/updater v0.0.0-20250601065453-91649328574c/go.mod h1:EtAn+BPibqnAHnYGj3FW5e284xNsiOOMOL2dJiwu7H4=
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 github.com/google/go-cmp v0.5.6/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 github.com/google/go-cmp v0.5.7 h1:81/ik6ipDQS2aGcBfIN5dHDB36BwrStyeAQquSYCV4o=
