@@ -1,6 +1,6 @@
 module github.com/gokrazy/bakery
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
@@ -8,9 +8,9 @@ require (
 	github.com/gokrazy/internal v0.0.0-20250526201501-559979153369
 	github.com/gokrazy/updater v0.0.0-20250601065453-91649328574c
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/net v0.44.0
+	golang.org/x/net v0.55.0
 	golang.org/x/sync v0.17.0
-	golang.org/x/sys v0.36.0
+	golang.org/x/sys v0.45.0
 )
 
 require (
